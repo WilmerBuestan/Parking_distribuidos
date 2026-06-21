@@ -55,3 +55,28 @@ services:
         paths:
           - /api/tickets
         strip_path: true
+
+# ============================================================
+# Plugin CORS global: permite que el frontend React (localhost:5173,
+# servido por Vite) haga peticiones a Kong (localhost:8000) sin que
+# el navegador las bloquee. Sin esto, el navegador rechaza toda
+# petición fetch/axios entre distintos orígenes (puertos distintos
+# cuentan como orígenes distintos).
+# ============================================================
+plugins:
+  - name: cors
+    config:
+      origins:
+        - "http://localhost:5173"
+      methods:
+        - GET
+        - POST
+        - PATCH
+        - PUT
+        - DELETE
+        - OPTIONS
+      headers:
+        - Content-Type
+        - Authorization
+      credentials: true
+      max_age: 3600
