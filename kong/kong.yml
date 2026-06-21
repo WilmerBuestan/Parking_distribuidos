@@ -1,0 +1,57 @@
+_format_version: "3.0"
+
+# Kong corre en un contenedor Docker; los 4 microservicios corren directo en el host
+# (fuera de Docker), por eso usamos host.docker.internal en vez de localhost.
+#
+# TÉCNICA CLAVE: el campo "url" del service ya incluye el path base real que cada
+# microservicio espera (/personas, /vehiculos, /zonas, /tickets).
+# La route usa strip_path: true para quitar el prefijo público /api/algo,
+# y Kong automáticamente CONCATENA el path del service + lo que quede de la URL
+# original después del prefijo.
+#
+# Ejemplo real:
+#   Cliente llama:  GET http://localhost:8000/api/personas/cedula/1712345678
+#   Route /api/personas hace match, strip_path quita "/api/personas" -> queda "/cedula/1712345678"
+#   Kong concatena con el path del service "/personas" -> resultado final:
+#   GET http://host.docker.internal:3001/personas/cedula/1712345678   ✓ correcto
+
+services:
+  - name: personas-service
+    url: http://host.docker.internal:3001/personas
+    routes:
+      - name: personas-route
+        paths:
+          - /api/personas
+        strip_path: true
+
+  - name: vehiculos-service
+    url: http://host.docker.internal:3002/vehiculos
+    routes:
+      - name: vehiculos-route
+        paths:
+          - /api/vehiculos
+        strip_path: true
+
+  - name: zonas-service
+    url: http://host.docker.internal:3003/zonas
+    routes:
+      - name: zonas-route
+        paths:
+          - /api/zonas
+        strip_path: true
+
+  - name: espacios-service
+    url: http://host.docker.internal:3003/api/v1/espacios
+    routes:
+      - name: espacios-route
+        paths:
+          - /api/v1/espacios
+        strip_path: true
+
+  - name: tickets-service
+    url: http://host.docker.internal:3004/tickets
+    routes:
+      - name: tickets-route
+        paths:
+          - /api/tickets
+        strip_path: true

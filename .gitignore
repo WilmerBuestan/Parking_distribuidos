@@ -1,0 +1,23 @@
+# Logs de runtime generados por levantar-sistema.sh (no son parte del código)
+logs/
+
+# Configuración local de editor/herramientas, no es parte del proyecto
+.claude/
+.vscode/
+
+# Por si algún .env se cuela en cualquier subcarpeta (cada servicio ya debería
+# ignorarlo en su propio .gitignore, esto es una capa extra de seguridad)
+**/.env
+
+# node_modules y dist de cualquier subproyecto, por si algún .gitignore
+# individual no lo cubre completo
+**/node_modules/
+**/dist/
+
+# Build de Gradle (zonas)
+**/build/
+**/.gradle/
+
+# Archivos de sistema
+.DS_Store
+*.log
