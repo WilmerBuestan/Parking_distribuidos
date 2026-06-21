@@ -200,8 +200,8 @@ psql -U postgres
 
 Dentro de `psql`, ejecuta:
 ```sql
-CREATE DATABASE personas_db;
-CREATE DATABASE vehiculos_db;
+CREATE DATABASE db_personas;
+CREATE DATABASE gestion_vehiculos;
 CREATE DATABASE zonas_db;
 CREATE DATABASE db_tickets;
 \q
@@ -219,7 +219,7 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_USUARIO=postgres
 DB_CONTRASENA=admin123
-DB_NOMBRE=personas_db
+DB_NOMBRE=db_personas
 PORT=3001
 ```
 
@@ -229,7 +229,7 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_USUARIO=postgres
 DB_CONTRASENA=admin123
-DB_NOMBRE=vehiculos_db
+DB_NOMBRE=gestion_vehiculos
 PORT=3002
 ```
 
