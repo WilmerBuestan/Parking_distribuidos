@@ -44,17 +44,24 @@ export class PersonasController {
   @ApiOperation({ summary: 'Buscar persona por username de su usuario' })
   @ApiParam({ name: 'username', example: 'wbuestan' })
   @ApiResponse({ status: 200, description: 'Persona encontrada' })
-  @ApiResponse({ status: 404, description: 'No existe usuario con ese username' })
+  @ApiResponse({
+    status: 404,
+    description: 'No existe usuario con ese username',
+  })
   findByUsername(@Param('username') username: string) {
     return this.personasService.findByUsername(username);
   }
 
   @Get('apellido/:apellido')
   @ApiOperation({
-    summary: 'Buscar personas por apellido (coincidencia parcial, sin distinguir mayúsculas)',
+    summary:
+      'Buscar personas por apellido (coincidencia parcial, sin distinguir mayúsculas)',
   })
   @ApiParam({ name: 'apellido', example: 'Buestan' })
-  @ApiResponse({ status: 200, description: 'Lista de personas coincidentes (puede ser vacía)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de personas coincidentes (puede ser vacía)',
+  })
   findByApellido(@Param('apellido') apellido: string) {
     return this.personasService.findByApellido(apellido);
   }

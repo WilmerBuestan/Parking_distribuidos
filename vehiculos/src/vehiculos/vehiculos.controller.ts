@@ -10,6 +10,7 @@ import {
 import { VehiculosService } from './vehiculos.service';
 import { CreateVehiculoDto } from './dto/create-vehiculo.dto';
 import { UpdateVehiculoDto } from './dto/update-vehiculo.dto';
+import { ApiOperation } from '@nestjs/swagger';
 
 @Controller('vehiculos')
 export class VehiculosController {
@@ -23,6 +24,15 @@ export class VehiculosController {
   @Get()
   findAll() {
     return this.vehiculosService.findAll();
+  }
+
+  @Post('batch')
+  @ApiOperation({
+    summary:
+      'Buscar varios vehículos por lista de IDs (uso interno entre microservicios)',
+  })
+  findByIds(@Body() body: { ids: string[] }) {
+    return this.vehiculosService.findByIds(body.ids);
   }
 
   @Get('placa/:placa')
@@ -40,7 +50,10 @@ export class VehiculosController {
     @Param('placa') placa: string,
     @Body() body: { enParqueadero: boolean },
   ) {
-    return this.vehiculosService.actualizarEstadoParqueo(placa, body.enParqueadero);
+    return this.vehiculosService.actualizarEstadoParqueo(
+      placa,
+      body.enParqueadero,
+    );
   }
 
   @Get(':id')

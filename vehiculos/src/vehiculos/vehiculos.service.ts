@@ -34,6 +34,14 @@ export class VehiculosService {
     return this.respositoryVehiculos.find();
   }
 
+  async findByIds(ids: string[]): Promise<Vehiculo[]> {
+    if (!ids || ids.length === 0) return [];
+    return this.respositoryVehiculos
+      .createQueryBuilder('vehiculo')
+      .where('vehiculo.id IN (:...ids)', { ids })
+      .getMany();
+  }
+
   async findOne(id: string): Promise<Vehiculo> {
     const existe = await this.respositoryVehiculos.findOne({
       where: { id },
@@ -68,12 +76,17 @@ export class VehiculosService {
     return vehiculo;
   }
 
-  async checkDisponibilidad(placa: string): Promise<{ disponible: boolean; vehiculo: Vehiculo }> {
+  async checkDisponibilidad(
+    placa: string,
+  ): Promise<{ disponible: boolean; vehiculo: Vehiculo }> {
     const vehiculo = await this.findByPlaca(placa);
     return { disponible: !vehiculo.enParqueadero, vehiculo };
   }
 
-  async actualizarEstadoParqueo(placa: string, enParqueadero: boolean): Promise<Vehiculo> {
+  async actualizarEstadoParqueo(
+    placa: string,
+    enParqueadero: boolean,
+  ): Promise<Vehiculo> {
     const vehiculo = await this.findByPlaca(placa);
     vehiculo.enParqueadero = enParqueadero;
     return this.respositoryVehiculos.save(vehiculo);

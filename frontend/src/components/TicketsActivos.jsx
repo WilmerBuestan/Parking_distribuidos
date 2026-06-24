@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, LogOut, Clock, Car, IdCard, Inbox } from 'lucide-react';
-import Card from './Card';
-import { listarTicketsActivos, procesarSalidaTicket } from '../api/tickets';
+import { useCallback, useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Activity, LogOut, Clock, Car, IdCard, Inbox } from "lucide-react";
+import Card from "./Card";
+import { listarTicketsActivos, procesarSalidaTicket } from "../api/tickets";
 
 const INTERVALO_REFRESCO_MS = 5000;
 
@@ -56,21 +56,23 @@ export default function TicketsActivos({ refrescarSenal, delay }) {
       action={
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-500 pulse-live" />
-          <span className="text-[11px] font-semibold text-slate-400">EN VIVO</span>
+          <span className="text-[11px] font-semibold text-slate-400">
+            EN VIVO
+          </span>
         </div>
       }
     >
       <div className="flex items-center gap-2 mb-4">
         <motion.span
           key={tickets.length}
-          initial={{ scale: 1.4, color: '#10b981' }}
-          animate={{ scale: 1, color: '#1e293b' }}
+          initial={{ scale: 1.4, color: "#10b981" }}
+          animate={{ scale: 1, color: "#1e293b" }}
           className="text-3xl font-extrabold tabular-nums"
         >
           {tickets.length}
         </motion.span>
         <span className="text-sm text-slate-400 font-medium">
-          {tickets.length === 1 ? 'vehículo dentro' : 'vehículos dentro'}
+          {tickets.length === 1 ? "vehículo dentro" : "vehículos dentro"}
         </span>
       </div>
 
@@ -99,7 +101,7 @@ export default function TicketsActivos({ refrescarSenal, delay }) {
                 initial={{ opacity: 0, x: -24 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 24, transition: { duration: 0.2 } }}
-                transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+                transition={{ type: "spring", stiffness: 300, damping: 28 }}
                 className="flex items-center justify-between bg-white/70 border border-slate-100 rounded-xl p-3.5"
               >
                 <div className="min-w-0">
@@ -125,7 +127,11 @@ export default function TicketsActivos({ refrescarSenal, delay }) {
                   {procesandoId === t.id ? (
                     <motion.div
                       animate={{ rotate: 360 }}
-                      transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                      transition={{
+                        repeat: Infinity,
+                        duration: 0.8,
+                        ease: "linear",
+                      }}
                       className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full"
                     />
                   ) : (

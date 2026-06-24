@@ -5,26 +5,24 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
-  // Esta línea activa las validaciones de los DTOs
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }),
   );
 
   const config = new DocumentBuilder()
-    .setTitle('Personas API')
+    .setTitle('Asignación y Trazabilidad API')
     .setDescription(
-      'Microservicio de gestión de personas y usuarios del sistema de Parqueadero. ' +
-        'Expone búsquedas por cédula, username y apellido, usadas por tickets-service ' +
-        'para validar la identidad de quien solicita un ticket de entrada.',
+      'Microservicio que gestiona la asignación de vehículos a propietarios usando ' +
+        'clave compuesta (userId + vehicleId), con registro automático de auditoría ' +
+        'desacoplado mediante TypeORM Subscribers.',
     )
     .setVersion('1.0')
-    .addTag('personas')
+    .addTag('asignaciones')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
-  await app.listen(3001);
+  await app.listen(process.env.PORT ?? 3005);
 }
 void bootstrap();
