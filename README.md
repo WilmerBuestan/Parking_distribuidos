@@ -1,6 +1,6 @@
 # Sistema de Parqueadero — Microservicios Distribuidos
 
-Proyecto de la materia **Aplicaciones Distribuidas** (ESPE). Sistema de gestión de parqueadero compuesto por 4 microservicios independientes, un API Gateway (Kong) y un frontend en React.
+Proyecto de la materia **Aplicaciones Distribuidas** (ESPE). Sistema de gestión de parqueadero compuesto por 5 microservicios independientes, un API Gateway (Kong) y un frontend en React.
 
 **Autores:** Wilmer Buestan, Germán Cáceres, Jefferson Masapanta
 
@@ -20,18 +20,18 @@ Proyecto de la materia **Aplicaciones Distribuidas** (ESPE). Sistema de gestión
                          │  (localhost:8000)     │
                          └──────────┬───────────┘
                                     │
-        ┌──────────────┬───────────┼───────────┬──────────────┐
-        ▼              ▼           ▼           ▼              
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│   personas   │ │  vehiculos   │ │    zonas     │ │   tickets    │
-│  (NestJS)    │ │  (NestJS)    │ │ (Spring Boot)│ │  (NestJS)    │
-│  puerto 3001 │ │  puerto 3002 │ │  puerto 3003 │ │  puerto 3004 │
-└──────────────┘ └──────────────┘ └──────────────┘ └──────┬───────┘
-                                                            │
-                                          tickets-service llama
-                                          directo (sin pasar por Kong)
-                                          a los otros 3 para validar
-                                          y orquestar la emisión de tickets
+        ┌──────────────┬───────────┼───────────┬──────────────┬───────────────────────┐
+        ▼              ▼           ▼           ▼              ▼
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────────────┐
+│   personas   │ │  vehiculos   │ │    zonas     │ │   tickets    │ │ asignacion-trazabi-  │
+│  (NestJS)    │ │  (NestJS)    │ │ (Spring Boot)│ │  (NestJS)    │ │ lidad (NestJS)       │
+│  puerto 3001 │ │  puerto 3002 │ │  puerto 3003 │ │  puerto 3004 │ │  puerto 3005         │
+└──────────────┘ └──────────────┘ └──────────────┘ └──────┬───────┘ └──────────┬───────────┘
+                                                            │                    │
+                                          tickets llama      │   asignacion llama a personas
+                                          directo a los 3    │   y vehiculos para validar
+                                          para orquestar      └──────────────────────────────
+                                          la emisión de tickets
 ```
 
 **Qué hace cada parte:**
@@ -40,6 +40,7 @@ Proyecto de la materia **Aplicaciones Distribuidas** (ESPE). Sistema de gestión
 - **vehiculos-service**: gestión de vehículos (Auto, Camioneta, Motocicleta). Búsqueda por placa, disponibilidad.
 - **zonas-service**: gestión de zonas de parqueo y sus espacios individuales (cada espacio tiene su propio estado: LIBRE, OCUPADO, RESERVADO, MANTENIMIENTO).
 - **tickets-service**: el orquestador. Al emitir un ticket de entrada, valida la persona, el vehículo y la zona contra los otros 3 servicios, asigna un espacio libre específico, y guarda el ticket.
+- **asignacion-trazabilidad**: gestiona la relación propietario-vehículo (quién es dueño de qué auto). Registra automáticamente un log de auditoría (CREACION / MODIFICACION / ELIMINACION) usando un TypeORM EventSubscriber desacoplado del servicio. Incluye consulta de flota completa por usuario vía llamada batch a vehiculos-service.
 - **Kong**: único punto de entrada externo. El frontend solo conoce la URL de Kong, nunca los puertos individuales de cada microservicio.
 - **Frontend React**: interfaz para emitir tickets, buscar personas/vehículos, ver zonas, y un dashboard de tickets activos.
 
@@ -176,13 +177,14 @@ La estructura que vas a ver:
 
 ```
 Parking_distribuidos/
-├── backend-personas/    (NestJS, puerto 3001)
-├── vehiculos/            (NestJS, puerto 3002)
-├── zonas/                (Spring Boot, puerto 3003)
-├── tickets-service/      (NestJS, puerto 3004)
-├── kong/                 (configuración del API Gateway)
-├── frontend/             (React + Vite + Tailwind)
-└── levantar-sistema.sh   (script de arranque automático, solo Linux/Mac)
+├── backend-personas/          (NestJS, puerto 3001)
+├── vehiculos/                  (NestJS, puerto 3002)
+├── zonas/                      (Spring Boot, puerto 3003)
+├── tickets-service/            (NestJS, puerto 3004)
+├── asignacion-trazabilidad/    (NestJS, puerto 3005 — propietario-vehículo + auditoría)
+├── kong/                       (configuración del API Gateway)
+├── frontend/                   (React + Vite + Tailwind)
+└── levantar-sistema.sh         (script de arranque automático, solo Linux/Mac)
 ```
 
 ---
@@ -204,6 +206,7 @@ CREATE DATABASE db_personas;
 CREATE DATABASE gestion_vehiculos;
 CREATE DATABASE zonas_db;
 CREATE DATABASE db_tickets;
+CREATE DATABASE db_asignaciones;
 \q
 ```
 
@@ -248,6 +251,20 @@ VEHICULOS_SERVICE_URL=http://localhost:3002
 ZONAS_SERVICE_URL=http://localhost:3003
 ```
 
+**`asignacion-trazabilidad/.env`:**
+```env
+PORT=3005
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_USUARIO=postgres
+DB_CONTRASENA=admin123
+DB_NOMBRE=db_asignaciones
+
+PERSONAS_SERVICE_URL=http://localhost:3001
+VEHICULOS_SERVICE_URL=http://localhost:3002
+```
+
 > Reemplaza `admin123` por la contraseña real que configuraste en PostgreSQL si es distinta.
 
 ### 4.3 Configurar zonas (Spring Boot)
@@ -280,6 +297,7 @@ Desde la raíz del proyecto:
 cd backend-personas && npm install && cd ..
 cd vehiculos && npm install && cd ..
 cd tickets-service && npm install && cd ..
+cd asignacion-trazabilidad && npm install && cd ..
 cd frontend && npm install && cd ..
 ```
 
@@ -345,7 +363,14 @@ cd tickets-service
 npm run start
 ```
 
-**Terminal 5 — Kong (requiere Docker Desktop abierto):**
+**Terminal 5 — asignacion-trazabilidad:**
+```bash
+cd asignacion-trazabilidad
+npm run start
+```
+Espera a ver `Nest application successfully started`.
+
+**Terminal 6 — Kong (requiere Docker Desktop abierto):**
 ```bash
 cd kong
 docker run -d --name kong-dbless \
@@ -390,6 +415,7 @@ Abre el navegador en **http://localhost:5173**
 | vehiculos | http://localhost:3002/vehiculos |
 | zonas | http://localhost:3003/zonas |
 | tickets-service | http://localhost:3004/tickets/activos |
+| asignacion-trazabilidad | http://localhost:3005/asignaciones |
 
 Cada una debería devolver un JSON (puede estar vacío `[]` si no hay datos aún, eso es normal).
 
@@ -401,6 +427,7 @@ Cada una debería devolver un JSON (puede estar vacío `[]` si no hay datos aún
 | vehiculos | http://localhost:3002/api/docs |
 | zonas | http://localhost:3003/swagger-ui.html |
 | tickets-service | http://localhost:3004/api/docs |
+| asignacion-trazabilidad | http://localhost:3005/api/docs |
 
 ### 6.3 Revisar Kong
 

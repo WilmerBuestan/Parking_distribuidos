@@ -56,6 +56,14 @@ services:
           - /api/tickets
         strip_path: true
 
+  - name: asignacion-service
+    url: http://host.docker.internal:3005/asignaciones
+    routes:
+      - name: asignacion-route
+        paths:
+          - /api/asignaciones
+        strip_path: true
+
 # ============================================================
 # Plugin CORS global: permite que el frontend React (localhost:5173,
 # servido por Vite) haga peticiones a Kong (localhost:8000) sin que

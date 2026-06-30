@@ -3,7 +3,8 @@
 # ============================================================
 # Script de arranque automático - Sistema de Parqueadero
 # Levanta: personas (3001), vehiculos (3002), zonas (3003),
-#          tickets-service (3004) y Kong (8000/8001)
+#          tickets-service (3004), asignacion-trazabilidad (3005)
+#          y Kong (8000/8001)
 # ============================================================
 
 set -e  # Detener el script si algún comando falla de forma inesperada
@@ -35,9 +36,9 @@ fi
 # 0. Limpieza previa: matar procesos zombie en los puertos clave
 #    y eliminar cualquier contenedor Kong anterior
 # ------------------------------------------------------------
-echo -e "${AMARILLO}[0/6] Limpiando puertos y contenedores previos...${NC}"
+echo -e "${AMARILLO}[0/7] Limpiando puertos y contenedores previos...${NC}"
 
-for puerto in 3001 3002 3003 3004; do
+for puerto in 3001 3002 3003 3004 3005; do
   PID=$(sudo ss -tlnp 2>/dev/null | grep ":${puerto} " | grep -oP 'pid=\K[0-9]+' | head -1)
   if [ -n "$PID" ]; then
     echo "  Puerto $puerto ocupado por PID $PID, liberando..."
@@ -78,7 +79,7 @@ esperar_puerto() {
 # ------------------------------------------------------------
 # 1. backend-personas (3001)
 # ------------------------------------------------------------
-echo -e "${AMARILLO}[1/6] Levantando backend-personas (puerto 3001)...${NC}"
+echo -e "${AMARILLO}[1/7] Levantando backend-personas (puerto 3001)...${NC}"
 cd "$BASE_DIR/backend-personas"
 nohup npm run start > "$LOG_DIR/personas.log" 2>&1 &
 esperar_puerto 3001 "personas"
@@ -87,7 +88,7 @@ echo ""
 # ------------------------------------------------------------
 # 2. vehiculos (3002)
 # ------------------------------------------------------------
-echo -e "${AMARILLO}[2/6] Levantando vehiculos (puerto 3002)...${NC}"
+echo -e "${AMARILLO}[2/7] Levantando vehiculos (puerto 3002)...${NC}"
 cd "$BASE_DIR/vehiculos"
 nohup npm run start > "$LOG_DIR/vehiculos.log" 2>&1 &
 esperar_puerto 3002 "vehiculos"
@@ -96,7 +97,7 @@ echo ""
 # ------------------------------------------------------------
 # 3. zonas (3003) - Spring Boot, tarda más en levantar
 # ------------------------------------------------------------
-echo -e "${AMARILLO}[3/6] Levantando zonas (puerto 3003, Spring Boot, puede tardar ~10-15s)...${NC}"
+echo -e "${AMARILLO}[3/7] Levantando zonas (puerto 3003, Spring Boot, puede tardar ~10-15s)...${NC}"
 cd "$BASE_DIR/zonas"
 nohup ./gradlew bootRun > "$LOG_DIR/zonas.log" 2>&1 &
 esperar_puerto 3003 "zonas"
@@ -105,26 +106,35 @@ echo ""
 # ------------------------------------------------------------
 # 4. tickets-service (3004)
 # ------------------------------------------------------------
-echo -e "${AMARILLO}[4/6] Levantando tickets-service (puerto 3004)...${NC}"
+echo -e "${AMARILLO}[4/7] Levantando tickets-service (puerto 3004)...${NC}"
 cd "$BASE_DIR/tickets-service"
 nohup npm run start > "$LOG_DIR/tickets.log" 2>&1 &
 esperar_puerto 3004 "tickets-service"
 echo ""
 
 # ------------------------------------------------------------
-# 5. Regla de iptables necesaria para que Kong (Docker) alcance
+# 5. asignacion-trazabilidad (3005)
+# ------------------------------------------------------------
+echo -e "${AMARILLO}[5/7] Levantando asignacion-trazabilidad (puerto 3005)...${NC}"
+cd "$BASE_DIR/asignacion-trazabilidad"
+nohup npm run start > "$LOG_DIR/asignacion.log" 2>&1 &
+esperar_puerto 3005 "asignacion-trazabilidad"
+echo ""
+
+# ------------------------------------------------------------
+# 6. Regla de iptables necesaria para que Kong (Docker) alcance
 #    a los microservicios del host
 # ------------------------------------------------------------
-echo -e "${AMARILLO}[5/6] Aplicando regla de red Docker -> host...${NC}"
-sudo iptables -C DOCKER-USER -s 172.17.0.0/16 -d 172.17.0.1 -p tcp -m multiport --dports 3001,3002,3003,3004 -j ACCEPT 2>/dev/null \
-  || sudo iptables -I DOCKER-USER -s 172.17.0.0/16 -d 172.17.0.1 -p tcp -m multiport --dports 3001,3002,3003,3004 -j ACCEPT
+echo -e "${AMARILLO}[6/7] Aplicando regla de red Docker -> host...${NC}"
+sudo iptables -C DOCKER-USER -s 172.17.0.0/16 -d 172.17.0.1 -p tcp -m multiport --dports 3001,3002,3003,3004,3005 -j ACCEPT 2>/dev/null \
+  || sudo iptables -I DOCKER-USER -s 172.17.0.0/16 -d 172.17.0.1 -p tcp -m multiport --dports 3001,3002,3003,3004,3005 -j ACCEPT
 echo -e "${VERDE}  Regla aplicada.${NC}"
 echo ""
 
 # ------------------------------------------------------------
 # 6. Kong (8000 proxy / 8001 admin)
 # ------------------------------------------------------------
-echo -e "${AMARILLO}[6/6] Levantando Kong (DB-less)...${NC}"
+echo -e "${AMARILLO}[7/7] Levantando Kong (DB-less)...${NC}"
 cd "$BASE_DIR/kong"
 
 if docker ps -a --format '{{.Names}}' | grep -q '^kong-dbless$'; then
@@ -154,11 +164,12 @@ echo ""
 # Resumen final
 # ------------------------------------------------------------
 echo -e "${AMARILLO}=== Resumen ===${NC}"
-echo "  Personas:         http://localhost:3001  (vía Kong: http://localhost:8000/api/personas)"
-echo "  Vehiculos:        http://localhost:3002  (vía Kong: http://localhost:8000/api/vehiculos)"
-echo "  Zonas:            http://localhost:3003  (vía Kong: http://localhost:8000/api/zonas)"
-echo "  Tickets-service:  http://localhost:3004  (vía Kong: http://localhost:8000/api/tickets)"
-echo "  Kong Admin API:   http://localhost:8001"
+echo "  Personas:                 http://localhost:3001  (vía Kong: http://localhost:8000/api/personas)"
+echo "  Vehiculos:                http://localhost:3002  (vía Kong: http://localhost:8000/api/vehiculos)"
+echo "  Zonas:                    http://localhost:3003  (vía Kong: http://localhost:8000/api/zonas)"
+echo "  Tickets-service:          http://localhost:3004  (vía Kong: http://localhost:8000/api/tickets)"
+echo "  Asignacion-trazabilidad:  http://localhost:3005  (vía Kong: http://localhost:8000/api/asignaciones)"
+echo "  Kong Admin API:           http://localhost:8001"
 echo ""
 echo "  Logs en: $LOG_DIR"
 echo -e "${VERDE}Sistema arriba.${NC}"
