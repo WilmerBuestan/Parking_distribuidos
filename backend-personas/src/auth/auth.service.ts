@@ -6,11 +6,15 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
+import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { firstValueFrom } from 'rxjs';
 import { PersonasService } from '../personas/personas.service';
 import { RolesService } from '../roles/roles.service';
 import { CreatePersonaDto } from '../personas/dto/create-persona.dto';
+import { UpdatePersonaDto } from '../personas/dto/update-persona.dto';
 import { Usuario } from '../personas/entities/usuario.entity';
 import { UsuarioRol } from '../personas/entities/usuario-rol.entity';
 import { Rol } from '../personas/entities/rol.entity';
@@ -21,6 +25,9 @@ const REFRESH_TOKEN_DIAS = 7;
 
 @Injectable()
 export class AuthService {
+  private readonly vehiculosUrl: string;
+  private readonly asignacionesUrl: string;
+
   constructor(
     @InjectRepository(Usuario)
     private readonly usuarioRepository: Repository<Usuario>,
@@ -33,14 +40,17 @@ export class AuthService {
     private readonly personasService: PersonasService,
     private readonly rolesService: RolesService,
     private readonly jwtService: JwtService,
-  ) {}
+    private readonly httpService: HttpService,
+    private readonly configService: ConfigService,
+  ) {
+    this.vehiculosUrl =
+      this.configService.get<string>('VEHICULOS_SERVICE_URL') ?? 'http://localhost:3002';
+    this.asignacionesUrl =
+      this.configService.get<string>('ASIGNACIONES_SERVICE_URL') ?? 'http://localhost:3005';
+  }
 
-  /**
-   * Registro público. Reutiliza PersonasService.create() (que ya crea
-   * Persona + Usuario con su username autogenerado), y luego:
-   * 1. Activa el usuario inmediatamente (sin aprobación manual).
-   * 2. Le asigna el rol CLIENTE, que es la base de todo usuario registrado.
-   */
+  // ===== Auth (ya existente) =====
+
   async register(dto: CreatePersonaDto) {
     const resultado = await this.personasService.create(dto);
     const idPerson = resultado.persona.id as string;
@@ -49,17 +59,13 @@ export class AuthService {
       where: { idPerson },
     });
     if (!usuario) {
-      throw new BadRequestException(
-        'No se pudo localizar el usuario recién creado',
-      );
+      throw new BadRequestException('No se pudo localizar el usuario recién creado');
     }
 
     usuario.active = true;
     await this.usuarioRepository.save(usuario);
 
-    const rolCliente = await this.rolRepository.findOne({
-      where: { name: 'CLIENTE' },
-    });
+    const rolCliente = await this.rolRepository.findOne({ where: { name: 'CLIENTE' } });
     if (rolCliente) {
       const vinculo = this.usuarioRolRepository.create({
         idUser: idPerson,
@@ -75,12 +81,6 @@ export class AuthService {
     };
   }
 
-  /**
-   * Login por username + password. Genera un par de tokens:
-   * - accessToken: corto, lleva roles y permisos, se verifica localmente
-   *   en cada microservicio sin llamar a personas-service.
-   * - refreshToken: largo, se guarda hasheado en BD, permite revocación.
-   */
   async login(dto: LoginDto) {
     const usuario = await this.usuarioRepository.findOne({
       where: { username: dto.username },
@@ -91,22 +91,15 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    const passwordValida = await bcrypt.compare(
-      dto.password,
-      usuario.passwordHash,
-    );
+    const passwordValida = await bcrypt.compare(dto.password, usuario.passwordHash);
     if (!passwordValida) {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    const { roles, permisos } = await this.obtenerRolesYPermisos(
-      usuario.idPerson,
-    );
+    const { roles, permisos } = await this.obtenerRolesYPermisos(usuario.idPerson);
 
     const accessToken = await this.generarAccessToken(usuario, roles, permisos);
-    const refreshToken = await this.generarYGuardarRefreshToken(
-      usuario.idPerson,
-    );
+    const refreshToken = await this.generarYGuardarRefreshToken(usuario.idPerson);
 
     return {
       accessToken,
@@ -119,11 +112,6 @@ export class AuthService {
     };
   }
 
-  /**
-   * Recibe un refresh token, valida que exista, no esté revocado ni expirado,
-   * y emite un accessToken NUEVO con los permisos actuales del usuario
-   * (por si cambiaron desde el último login).
-   */
   async refresh(refreshTokenPlano: string) {
     const tokenHash = this.hashToken(refreshTokenPlano);
 
@@ -142,20 +130,15 @@ export class AuthService {
       throw new UnauthorizedException('Usuario no encontrado o inactivo');
     }
 
-    const { roles, permisos } = await this.obtenerRolesYPermisos(
-      usuario.idPerson,
-    );
+    const { roles, permisos } = await this.obtenerRolesYPermisos(usuario.idPerson);
     const accessToken = await this.generarAccessToken(usuario, roles, permisos);
 
     return { accessToken };
   }
 
-  /** Revoca un refresh token específico (cierra solo esa sesión). */
   async logout(refreshTokenPlano: string) {
     const tokenHash = this.hashToken(refreshTokenPlano);
-    const registro = await this.refreshTokenRepository.findOne({
-      where: { tokenHash },
-    });
+    const registro = await this.refreshTokenRepository.findOne({ where: { tokenHash } });
 
     if (registro) {
       registro.revocado = true;
@@ -163,6 +146,58 @@ export class AuthService {
     }
 
     return { message: 'Sesión cerrada correctamente' };
+  }
+
+  // ===== Fase D: Endpoints de CLIENTE =====
+
+  /**
+   * GET /auth/me — devuelve los datos completos del usuario autenticado:
+   * persona, username, roles y permisos. El userId se extrae del JWT,
+   * nunca de un parámetro, así que un CLIENTE solo puede ver SUS datos.
+   */
+  async getMe(userId: string) {
+    const persona = await this.personasService.findOne(userId);
+    const { roles, permisos } = await this.obtenerRolesYPermisos(userId);
+
+    const usuario = await this.usuarioRepository.findOne({
+      where: { idPerson: userId },
+    });
+
+    return {
+      persona,
+      usuario: {
+        username: usuario?.username,
+        active: usuario?.active,
+      },
+      roles,
+      permisos,
+    };
+  }
+
+  /**
+   * PATCH /auth/me — actualiza los datos propios del usuario autenticado.
+   * Reutiliza PersonasService.update() con el ID que viene del JWT.
+   */
+  async updateMe(userId: string, dto: UpdatePersonaDto) {
+    return this.personasService.update(userId, dto);
+  }
+
+  /**
+   * GET /auth/mis-vehiculos — consulta los vehículos asignados al usuario
+   * autenticado, llamando a asignacion-trazabilidad que a su vez agrega
+   * datos de vehiculos-service (RF3 que ya probamos).
+   */
+  async getMisVehiculos(userId: string) {
+    try {
+      const res = await firstValueFrom(
+        this.httpService.get(`${this.asignacionesUrl}/asignaciones/usuario/${userId}`),
+      );
+      return res.data;
+    } catch {
+      // Si asignacion-trazabilidad no está corriendo, devolvemos vacío
+      // en vez de fallar con 500, para que el frontend no se rompa.
+      return { userId, totalVehiculos: 0, vehiculos: [], aviso: 'Servicio de asignaciones no disponible' };
+    }
   }
 
   // ===== Helpers privados =====
@@ -175,7 +210,9 @@ export class AuthService {
       relations: { rol: true },
     });
 
-    const roles = vinculos.filter((v) => v.rol?.active).map((v) => v.rol.name);
+    const roles = vinculos
+      .filter((v) => v.rol?.active)
+      .map((v) => v.rol.name);
 
     const permisos = await this.rolesService.obtenerPermisosDeRoles(roles);
 
@@ -214,7 +251,6 @@ export class AuthService {
     return tokenPlano;
   }
 
-  /** El refresh token nunca se guarda en texto plano, solo su hash SHA-256. */
   private hashToken(tokenPlano: string): string {
     return crypto.createHash('sha256').update(tokenPlano).digest('hex');
   }
