@@ -14,6 +14,8 @@ import { SearchTicketDto } from './dto/search-ticket.dto';
 import { ProcessPaymentDto } from './dto/process-payment.dto';
 import { Ticket, EstadoTicket } from './entities/ticket.entity';
 import { TicketResponseDto } from './dto/ticket-response.dto';
+import { RequierePermiso } from '../auth/guards/requiere-permiso.decorator';
+import { Public } from '../auth/guards/public.decorator';
 
 @ApiTags('tickets')
 @Controller('tickets')
@@ -21,6 +23,7 @@ export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
   @Post('entrada')
+  @RequierePermiso('tickets:emitir')
   @ApiOperation({ summary: 'Crear un nuevo ticket de entrada' })
   @ApiResponse({ status: 201, description: 'Ticket creado exitosamente' })
   @ApiResponse({ status: 400, description: 'Datos inválidos o conflictos' })
@@ -29,6 +32,7 @@ export class TicketsController {
   }
 
   @Patch('salida/:ticketId')
+  @RequierePermiso('tickets:emitir')
   @ApiOperation({ summary: 'Procesar la salida de un ticket' })
   @ApiResponse({ status: 200, description: 'Salida procesada exitosamente' })
   @ApiResponse({ status: 404, description: 'Ticket no encontrado' })
@@ -37,6 +41,7 @@ export class TicketsController {
   }
 
   @Patch('pago')
+  @RequierePermiso('tickets:cobrar')
   @ApiOperation({ summary: 'Procesar el pago de un ticket' })
   @ApiResponse({ status: 200, description: 'Pago procesado exitosamente' })
   @ApiResponse({ status: 400, description: 'Monto insuficiente o ticket en estado inválido' })
@@ -45,6 +50,7 @@ export class TicketsController {
   }
 
   @Patch('anular/:ticketId')
+  @RequierePermiso('tickets:emitir')
   @ApiOperation({ summary: 'Anular un ticket' })
   @ApiResponse({ status: 200, description: 'Ticket anulado exitosamente' })
   @ApiResponse({ status: 404, description: 'Ticket no encontrado' })
@@ -53,6 +59,7 @@ export class TicketsController {
   }
 
   @Get('activos')
+  @RequierePermiso('tickets:emitir', 'tickets:cobrar')
   @ApiOperation({ summary: 'Obtener todos los tickets activos' })
   @ApiResponse({ status: 200, description: 'Lista de tickets activos' })
   findActivos(): Promise<TicketResponseDto[]> {
@@ -60,6 +67,7 @@ export class TicketsController {
   }
 
   @Get('buscar')
+  @RequierePermiso('tickets:emitir', 'tickets:cobrar')
   @ApiOperation({ summary: 'Buscar tickets por cédula o placa' })
   @ApiQuery({ name: 'cedula', required: false, type: String })
   @ApiQuery({ name: 'placa', required: false, type: String })
@@ -69,6 +77,7 @@ export class TicketsController {
   }
 
   @Get('cedula/:cedula')
+  @RequierePermiso('tickets:emitir', 'tickets:cobrar')
   @ApiOperation({ summary: 'Buscar tickets por cédula' })
   @ApiResponse({ status: 200, description: 'Tickets encontrados' })
   buscarPorCedula(@Param('cedula') cedula: string): Promise<TicketResponseDto[]> {
@@ -76,6 +85,7 @@ export class TicketsController {
   }
 
   @Get('placa/:placa')
+  @RequierePermiso('tickets:emitir', 'tickets:cobrar')
   @ApiOperation({ summary: 'Buscar tickets por placa' })
   @ApiResponse({ status: 200, description: 'Tickets encontrados' })
   buscarPorPlaca(@Param('placa') placa: string): Promise<TicketResponseDto[]> {
@@ -83,6 +93,7 @@ export class TicketsController {
   }
 
   @Get('estado/:estado')
+  @RequierePermiso('tickets:emitir', 'tickets:cobrar')
   @ApiOperation({ summary: 'Obtener tickets por estado' })
   @ApiResponse({ status: 200, description: 'Tickets encontrados' })
   obtenerPorEstado(@Param('estado') estado: EstadoTicket): Promise<TicketResponseDto[]> {
@@ -90,6 +101,7 @@ export class TicketsController {
   }
 
   @Get(':id')
+  @RequierePermiso('tickets:emitir', 'tickets:cobrar')
   @ApiOperation({ summary: 'Obtener un ticket por ID' })
   @ApiResponse({ status: 200, description: 'Ticket encontrado' })
   @ApiResponse({ status: 404, description: 'Ticket no encontrado' })
